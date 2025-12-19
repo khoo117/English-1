@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>Word-Fill Game (High-Frequency Words)</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#f3f5f9;padding:28px;}
+  .game{background:#fff;padding:22px;max-width:980px;border-radius:10px;}
+  .item{padding:14px 0;border-bottom:1px solid #eee;}
+  .masked{font-size:16px;letter-spacing:2px;margin-bottom:8px;}
+  input{
+    width:320px;padding:9px;font-size:15px;border:2px solid #cfd6e4;
+    border-radius:8px;outline:none;
+  }
+  input.correct{border-color:#22c55e;background:#ecfff4;}
+  input.wrong{border-color:#ef4444;background:#fff1f0;}
+  .meaning{color:#555;font-size:14px;margin-top:6px;}
+  .example{color:#333;font-size:14px;margin-top:6px;font-style:italic;}
+  .hint{margin-top:6px;font-size:13px;color:#6b7280;}
+  .hint.ok{color:#16a34a;font-weight:600;}
+  button{
+    margin-top:14px;margin-right:8px;padding:9px 16px;font-size:14px;border:none;
+    border-radius:8px;background:#2563eb;color:#fff;cursor:pointer;
+  }
+  button.secondary{background:#64748b;}
+  .result{margin-top:12px;font-weight:700;}
+  .answers{margin-top:12px;background:#eef1f7;padding:12px;border-radius:8px;display:none;}
+  .small{font-size:13px;color:#6b7280;margin:6px 0 14px;}
+</style>
+</head>
+<body>
+<div class="game">
+  <h2>Word-Fill Game（高频词 4 字母）</h2>
+  <div class="small">
+    玩法：看“挖空单词 + 华语解释 + 例句”，输入完整单词。<br>
+    即时提示：首字母 + 长度 + 进度；检查后：错红/对绿，并显示正确答案；🔊 可听发音。
+  </div>
+
+  <div id="items"></div>
+
+  <button onclick="checkAnswers()">Check Answers</button>
+  <div id="result" class="result"></div>
+  <div id="answersBox" class="answers"></div>
+</div>
+
+<script>
+// ✅ 先内置你清单的前10个（have–know）
+// 你要扩展到50个：继续在这里往下加即可（我也可以帮你一次补齐）
+const data = [
+  { word:"have", meaning:"有", example:"I have a plan for the weekend." },
+  { word:"make", meaning:"做；制造", example:"Please make a decision today." },
+  { word:"take", meaning:"拿；花费", example:"It will take ten minutes to finish." },
+  { word:"give", meaning:"给", example:"Please give me a moment." },
+  { word:"keep", meaning:"保持", example:"Keep your room clean and tidy." },
+  { word:"find", meaning:"找到", example:"I can’t find my keys anywhere." },
+  { word:"work", meaning:"工作", example:"This method works really well." },
+  { word:"play", meaning:"玩；演奏", example:"They play football after school." },
+  { word:"help", meaning:"帮助", example:"Can you help me with this task?" },
+  { word:"know", meaning:"知道", example:"I know the answer to that question." },
+];
+
+// 多字母挖空：4字母词更短，所以用“挖2个字母”会更像游戏
+function maskWord(word){
+  // 固定挖掉第2和第4个字母（适合4字母词）
+  // 例如 have -> h _ v _
+  const chars = word.split("");
+  if(chars.length >= 2) chars[1] = "_";
+  if(chars.length >= 4) chars[3] = "_";
+  return chars.join(" ");
+}
+
+const container = document.getElementById("items");
+
+data.forEach((d,i)=>{
+  container.innerHTML += `
+    <div class="item">
+      <div class="masked">${i+1}) ${maskWord(d.word)}</div>
+      <input id="q${i}" placeholder="Type the full word..." autocomplete="off" />
+      <div id="h${i}" class="hint">Hint: starts with "${d.word[0]}", length ${d.word.length}</div>
+
+      <div class="meaning">华语：${d.meaning}</div>
+      <div class="example">Example: ${d.example.replace(new RegExp("\\\\b"+d.word+"\\\\b","i"), "____")}</div>
+
+      <button class="secondary" onclick="speak('${d.word}')">🔊 Pronunciation</button>
+    </div>
+  `;
+});
+
+// 发音（浏览器内建 TTS）
+function speak(text){
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US";
+  u.rate = 0.9;
+  speechSynthesis.speak(u);
+}
+
+function normalize(s){ return (s||"").toLowerCase().trim(); }
+
+// 即时提示
+data.forEach((d,i)=>{
+  const el = document.getElementById("q"+i);
+  const hint = document.getElementById("h"+i);
+
+  el.addEventListener("input", ()=>{
+    const v = normalize(el.value);
+    el.classList.remove("correct","wrong"); // 实时不判红绿，避免干扰
+
+    if(!v){
+      hint.textContent = `Hint: starts with "${d.word[0]}", length ${d.word.length}`;
+      hint.className = "hint";
+      return;
+    }
+    if(v === d.word){
+      hint.textContent = "✓ Correct";
+      hint.className = "hint ok";
+      return;
+    }
+    if(d.word.startsWith(v)){
+      hint.textContent = `Good start… (${v.length}/${d.word.length})`;
+      hint.className = "hint";
+    }else{
+      hint.textContent = `Try again. Hint: starts with "${d.word[0]}"`;
+      hint.className = "hint";
+    }
+  });
+});
+
+// 检查答案：错误高亮 + 显示正确答案（只列出错的）
+function checkAnswers(){
+  let score = 0;
+  let wrongList = [];
+
+  data.forEach((d,i)=>{
+    const el = document.getElementById("q"+i);
+    const hint = document.getElementById("h"+i);
+    const v = normalize(el.value);
+
+    el.classList.remove("correct","wrong");
+
+    if(v === d.word){
+      score++;
+      el.classList.add("correct");
+      hint.textContent = "✓ Correct";
+      hint.className = "hint ok";
+    }else{
+      el.classList.add("wrong");
+      hint.textContent = `✗ Correct answer: ${d.word}`;
+      hint.className = "hint";
+      wrongList.push(`${i+1}. ${d.word} — ${d.meaning}`);
+    }
+  });
+
+  document.getElementById("result").textContent = `Your score: ${score} / ${data.length}`;
+
+  const box = document.getElementById("answersBox");
+  box.style.display = "block";
+  box.innerHTML = wrongList.length
+    ? `<b>Correct Answers (Wrong items only):</b><br>${wrongList.join("<br>")}`
+    : "<b>Excellent!</b> All answers are correct 🎉";
+}
+</script>
+</body>
+</html>
